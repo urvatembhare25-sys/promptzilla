@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kong Chase – Endless City Runner</title>
+<style>
+  /* ===== GLOBAL STYLES ===== */
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --yellow: #FFD600;
+    --red: #FF2D55;
+    --dark: #0a0a0f;
+    --mid: #12121c;
+    --panel: rgba(18,18,28,0.95);
+    --text: #f0f0f5;
+  }
+
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'Barlow', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ===== SCREENS (overlay panels) ===== */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    z-index: 10;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+  }
+  .screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  /* ===== START SCREEN ===== */
+  #startScreen {
+    background: linear-gradient(160deg, #0a0a0f 0%, #1a0a0f 60%, #0a0010 100%);
+  }
+
+  .game-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(52px, 10vw, 96px);
+    letter-spacing: 4px;
+    line-height: 1;
+    text-align: center;
+  }
+  .game-logo span.yellow { color: var(--yellow); }
+  .game-logo span.red { color: var(--red); }
+
+  .tagline {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #888;
+    margin-top: -8px;
+  }
+
+  .instructions-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 18px 28px;
+    max-width: 420px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: #bbb;
+    text-align: center;
+  }
+  .instructions-box strong { color: var(--yellow); }
+
+  .diff-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: -8px;
+  }
+
+  .diff-row { display: flex; gap: 12px; }
+
+  .btn {
+    font-family: 'Barlow', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 30px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-diff {
+    background: var(--mid);
+    color: #888;
+    border: 2px solid #222;
+    font-size: 13px;
+    padding: 10px 22px;
+  }
+  .btn-diff.selected {
+    border-color: var(--yellow);
+    color: var(--yellow);
+    background: rgba(255,214,0,0.08);
+  }
+
+  .btn-start {
+    background: var(--yellow);
+    color: #000;
+    font-size: 18px;
+    padding: 16px 56px;
+    border-radius: 10px;
+    margin-top: 4px;
+  }
+  .btn-start:hover { background: #ffe033; }
+
+  /* ===== GAME OVER SCREEN ===== */
+  #gameOverScreen {
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(8px);
+  }
+  .go-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(48px, 8vw, 80px);
+    color: var(--red);
+    letter-spacing: 4px;
+  }
+  .go-score {
+    font-size: 22px;
+    color: var(--text);
+  }
+  .go-score span { color: var(--yellow); font-weight: 700; font-size: 30px; }
+  .btn-restart {
+    background: var(--red);
+    color: #fff;
+    font-size: 16px;
+    padding: 14px 44px;
+  }
+  .btn-restart:hover { background: #ff5577; }
+  .btn-change-diff {
+    background: transparent;
+    color: #888;
+    border: 2px solid #333;
+    font-size: 12px;
+    padding: 10px 24px;
+  }
+  .btn-change-diff:hover { border-color: #666; color: #ccc; }
+
+  /* ===== CANVAS WRAPPER ===== */
+  #gameWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 4px;
+  }
+
+  /* ===== HUD ===== */
+  #hud {
+    position: absolute;
+    top: 16px;
+    left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0 20px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .hud-left, .hud-right { display: flex; flex-direction: column; gap: 4px; }
+  .hud-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 34px;
+    color: var(--yellow);
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  .hud-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #555;
+  }
+  .hud-diff-badge {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #888;
+    text-align: center;
+  }
+  .hearts { display: flex; gap: 5px; justify-content: flex-end; }
+  .heart {
+    font-size: 20px;
+    transition: transform 0.2s, opacity 0.2s;
+  }
+  .heart.lost { opacity: 0.2; }
+
+  /* ===== KONG WARNING ===== */
+  #kongWarning {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,45,85,0.9);
+    color: #fff;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    padding: 8px 20px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 6;
+    white-space: nowrap;
+  }
+  #kongWarning.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ===== START SCREEN ===== -->
+<div id="startScreen" class="screen">
+  <div class="game-logo">
+    <span class="yellow">KONG</span><br>
+    <span class="red">CHASE</span>
+  </div>
+  <div class="tagline">Endless City Runner</div>
+
+  <div class="instructions-box">
+    <strong>↑ / SPACE</strong> — Jump &nbsp;|&nbsp; <strong>↓</strong> — Duck<br>
+    Avoid obstacles & Kong's rocks!<br>
+    Every <strong>1000 pts</strong> earns an extra life (max 5).<br>
+    <span style="color:#ff6b6b">♥♥♥</span> — You start with 3 lives.
+  </div>
+
+  <div class="diff-label">Select Difficulty</div>
+  <div class="diff-row">
+    <button class="btn btn-diff" data-diff="easy">Easy</button>
+    <button class="btn btn-diff selected" data-diff="medium">Medium</button>
+    <button class="btn btn-diff" data-diff="hard">Hard</button>
+  </div>
+  <button class="btn btn-start" id="startBtn">START GAME</button>
+</div>
+
+<!-- ===== GAME OVER SCREEN ===== -->
+<div id="gameOverScreen" class="screen hidden">
+  <div class="go-title">GAME OVER</div>
+  <div class="go-score">Final Score: <span id="finalScore">0</span></div>
+  <button class="btn btn-restart" id="restartBtn">PLAY AGAIN</button>
+  <button class="btn btn-change-diff" id="changeDiffBtn">CHANGE DIFFICULTY</button>
+</div>
+
+<!-- ===== GAME CANVAS + HUD ===== -->
+<div id="gameWrapper">
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-left">
+      <div class="hud-label">Score</div>
+      <div class="hud-score" id="scoreDisplay">0</div>
+      <div class="hud-diff-badge" id="diffDisplay">MEDIUM</div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-label" style="text-align:right">Lives</div>
+      <div class="hearts" id="heartsDisplay"></div>
+    </div>
+  </div>
+
+  <div id="kongWarning">⚠ KONG ATTACK!</div>
+</div>
+
+<script>
+// ============================================================
+//  KONG CHASE – Endless Runner
+//  Architecture: single game object with modular sub-systems
+// ============================================================
+
+/* ---------- CANVAS SETUP ---------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+// Responsive sizing: fill viewport nicely
+function resizeCanvas() {
+  const maxW = Math.min(window.innerWidth, 900);
+  const maxH = Math.min(window.innerHeight - 40, 420);
+  const ratio = 900 / 420;
+  if (maxW / maxH > ratio) {
+    canvas.height = maxH;
+    canvas.width  = Math.round(maxH * ratio);
+  } else {
+    canvas.width  = maxW;
+    canvas.height = Math.round(maxW / ratio);
+  }
+  // Virtual coordinate system is always 900×420
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); if (!game.running) drawStartGraphic(); });
+
+// Scale helper: converts virtual coords → canvas pixels
+function sx(v) { return v * canvas.width  / 900; }
+function sy(v) { return v * canvas.height / 420; }
+
+/* ---------- DIFFICULTY CONFIGS ---------- */
+const DIFFICULTIES = {
+  easy:   { speed: 4.5, obstacleInterval: 120, kongInterval: 600, label: 'EASY' },
+  medium: { speed: 6,   obstacleInterval: 85,  kongInterval: 400, label: 'MEDIUM' },
+  hard:   { speed: 8.5, obstacleInterval: 55,  kongInterval: 240, label: 'HARD' },
+};
+
+/* ---------- GAME STATE ---------- */
+const game = {
+  running:    false,
+  difficulty: 'medium',
+  score:      0,
+  lives:      3,
+  maxLives:   5,
+  lastLifeAt: 0,   // score milestone for next life grant
+  speed:      6,
+  frame:      0,
+  rafId:      null,
+
+  // Timers (in frames)
+  obstacleTimer:  0,
+  obstacleNeeded: 85,
+  kongTimer:      0,
+  kongNeeded:     400,
+
+  // Sub-objects
+  player:    null,
+  obstacles: [],
+  rocks:     [],
+  particles: [],
+  buildings: [],
+  stars:     [],
+  clouds:    [],
+};
+
+/* ---------- PLAYER OBJECT ---------- */
+function createPlayer() {
+  return {
+    // Virtual coords
+    x: 120, y: 290,
+    w: 36,  h: 54,
+    vy: 0,
+    gravity: 0.65,
+    jumpForce: -13,
+    grounded: true,
+    ducking: false,
+    duckTimer: 0,
+    invincible: 0,   // frames of invincibility after hit
+    animFrame: 0,
+    runTimer: 0,
+
+    get top()    { return this.y; },
+    get bottom() { return this.y + this.h; },
+    get left()   { return this.x; },
+    get right()  { return this.x + this.w; },
+
+    jump() {
+      if (this.grounded) {
+        this.vy = this.jumpForce;
+        this.grounded = false;
+        spawnParticles(this.x + this.w/2, this.groundY(), '#FFD600', 6);
+      }
+    },
+
+    duck(on) {
+      if (on && !this.ducking) {
+        this.ducking = true;
+        this.h = 30; this.y += 24;
+      } else if (!on && this.ducking) {
+        this.ducking = false;
+        this.h = 54; this.y -= 24;
+      }
+    },
+
+    groundY() { return this.ducking ? 314 : 290; },
+
+    update() {
+      // Run animation
+      this.runTimer++;
+      if (this.runTimer % 8 === 0) this.animFrame = (this.animFrame + 1) % 4;
+
+      // Gravity
+      this.vy += this.gravity;
+      this.y  += this.vy;
+
+      const gy = this.groundY();
+      if (this.y >= gy) {
+        this.y       = gy;
+        this.vy      = 0;
+        this.grounded = true;
+      }
+
+      if (this.invincible > 0) this.invincible--;
+
+      // Duck auto-release
+      if (this.ducking) {
+        this.duckTimer++;
+        if (this.duckTimer > 40 && !keys.ArrowDown) { this.duck(false); this.duckTimer = 0; }
+      }
+    },
+
+    draw() {
+      const px = sx(this.x), py = sy(this.y);
+      const pw = sx(this.w), ph = sy(this.h);
+
+      // Blink when invincible
+      if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) return;
+
+      ctx.save();
+
+      // Body colour
+      const bodyColor = '#e07050';
+      const shirtColor = '#3388ff';
+      const pantsColor = '#2244aa';
+
+      if (this.ducking) {
+        // Ducked form
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(px + pw/2, py + ph/2, pw*0.6, ph*0.4, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = shirtColor;
+        ctx.fillRect(px + pw*0.1, py + ph*0.3, pw*0.8, ph*0.4);
+      } else {
+        // Head
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.ellipse(px + pw/2, py + sy(9), sx(10), sy(10), 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Body / shirt
+        ctx.fillStyle = shirtColor;
+        ctx.fillRect(px + pw*0.1, py + sy(17), pw*0.8, sy(18));
+
+        // Legs (animated)
+        const legOff = Math.sin(this.animFrame * Math.PI/2) * sy(6);
+        ctx.fillStyle = pantsColor;
+        ctx.fillRect(px + pw*0.1, py + sy(35), pw*0.35, sy(14) + legOff);
+        ctx.fillRect(px + pw*0.55, py + sy(35), pw*0.35, sy(14) - legOff);
+
+        // Arms
+        const armSwing = Math.sin(this.animFrame * Math.PI/2) * sy(5);
+        ctx.fillStyle = bodyColor;
+        ctx.fillRect(px - sx(6), py + sy(18) + armSwing, sx(8), sy(12));
+        ctx.fillRect(px + pw, py + sy(18) - armSwing, sx(8), sy(12));
+      }
+
+      ctx.restore();
+    },
+  };
+}
+
+/* ---------- OBSTACLES ---------- */
+function spawnObstacle() {
+  const types = ['barrier', 'car', 'hydrant'];
+  const t = types[Math.floor(Math.random() * types.length)];
+  let obs = { type: t, x: 920, passed: false };
+
+  if (t === 'barrier') {
+    obs.w = 22; obs.h = 48; obs.y = 290;
+    obs.color = '#FF2D55';
+  } else if (t === 'car') {
+    obs.w = 70; obs.h = 36; obs.y = 308;
+    obs.color = '#44aaff';
+  } else { // hydrant
+    obs.w = 18; obs.h = 32; obs.y = 312;
+    obs.color = '#FFD600';
+  }
+  game.obstacles.push(obs);
+}
+
+function updateObstacles() {
+  for (let i = game.obstacles.length - 1; i >= 0; i--) {
+    const o = game.obstacles[i];
+    o.x -= game.speed;
+    if (o.x + o.w < -10) { game.obstacles.splice(i, 1); }
+  }
+}
+
+function drawObstacles() {
+  for (const o of game.obstacles) {
+    const ox = sx(o.x), oy = sy(o.y);
+    const ow = sx(o.w), oh = sy(o.h);
+
+    if (o.type === 'barrier') {
+      // Traffic barrier
+      ctx.fillStyle = '#cc1133';
+      ctx.fillRect(ox, oy, ow, oh);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(ox, oy + oh*0.35, ow, oh*0.12);
+      ctx.fillRect(ox, oy + oh*0.65, ow, oh*0.12);
+      // base
+      ctx.fillStyle = '#aa0022';
+      ctx.fillRect(ox - sx(4), oy + oh, ow + sx(8), sy(6));
+    } else if (o.type === 'car') {
+      // Simple blocky car
+      ctx.fillStyle = o.color;
+      ctx.beginPath();
+      ctx.roundRect(ox, oy + oh*0.3, ow, oh*0.7, sx(4));
+      ctx.fill();
+      // Roof
+      ctx.fillStyle = '#aaddff';
+      ctx.beginPath();
+      ctx.roundRect(ox + ow*0.2, oy, ow*0.6, oh*0.4, sx(4));
+      ctx.fill();
+      // Wheels
+      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.arc(ox + ow*0.2, oy + oh, sx(8), 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ox + ow*0.8, oy + oh, sx(8), 0, Math.PI*2); ctx.fill();
+    } else {
+      // Fire hydrant
+      ctx.fillStyle = o.color;
+      ctx.beginPath();
+      ctx.roundRect(ox + ow*0.1, oy, ow*0.8, oh, sx(3));
+      ctx.fill();
+      ctx.fillStyle = '#cc9900';
+      ctx.fillRect(ox, oy + oh*0.2, ow, sy(5));
+      ctx.fillRect(ox, oy + oh*0.55, ow, sy(5));
+      // top cap
+      ctx.fillStyle = '#ffee00';
+      ctx.beginPath();
+      ctx.arc(ox + ow/2, oy, sx(6), 0, Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+/* ---------- KONG ---------- */
+const kong = {
+  x: 730, y: 50,
+  w: 120, h: 180,
+  armAngle: 0,
+  armDir: 1,
+  throwTimer: 0,
+  chestBeat: 0,
+
+  update() {
+    // Arm oscillation
+    this.armAngle += 0.05 * this.armDir;
+    if (Math.abs(this.armAngle) > 0.6) this.armDir *= -1;
+    this.chestBeat = (this.chestBeat + 1) % 30;
+  },
+
+  draw() {
+    const kx = sx(this.x), ky = sy(this.y);
+    const kw = sx(this.w), kh = sy(this.h);
+
+    ctx.save();
+
+    // Body
+    ctx.fillStyle = '#3a2010';
+    ctx.beginPath();
+    ctx.ellipse(kx + kw/2, ky + kh*0.55, kw*0.45, kh*0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#3a2010';
+    ctx.beginPath();
+    ctx.ellipse(kx + kw/2, ky + kh*0.22, kw*0.3, kh*0.25, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Face
+    ctx.fillStyle = '#8B5E3C';
+    ctx.beginPath();
+    ctx.ellipse(kx + kw/2, ky + kh*0.24, kw*0.18, kh*0.16, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = '#ff2200';
+    ctx.beginPath(); ctx.arc(kx + kw*0.42, ky + kh*0.2, sx(5), 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(kx + kw*0.58, ky + kh*0.2, sx(5), 0, Math.PI*2); ctx.fill();
+
+    // Angry brow
+    ctx.strokeStyle = '#1a0a00';
+    ctx.lineWidth = sx(3);
+    ctx.beginPath();
+    ctx.moveTo(kx + kw*0.35, ky + kh*0.17);
+    ctx.lineTo(kx + kw*0.48, ky + kh*0.19);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(kx + kw*0.65, ky + kh*0.17);
+    ctx.lineTo(kx + kw*0.52, ky + kh*0.19);
+    ctx.stroke();
+
+    // Left arm (raised for throwing)
+    ctx.save();
+    ctx.translate(kx + kw*0.12, ky + kh*0.38);
+    ctx.rotate(-0.9 + this.armAngle);
+    ctx.fillStyle = '#3a2010';
+    ctx.fillRect(-sx(12), -sy(55), sx(20), sy(55));
+    ctx.restore();
+
+    // Right arm (hanging)
+    ctx.save();
+    ctx.translate(kx + kw*0.88, ky + kh*0.38);
+    ctx.rotate(0.4 - this.armAngle * 0.5);
+    ctx.fillStyle = '#3a2010';
+    ctx.fillRect(-sx(8), 0, sx(20), sy(50));
+    ctx.restore();
+
+    // Legs
+    ctx.fillStyle = '#2a1505';
+    ctx.fillRect(kx + kw*0.25, ky + kh*0.8, kw*0.2, kh*0.22);
+    ctx.fillRect(kx + kw*0.55, ky + kh*0.8, kw*0.2, kh*0.22);
+
+    // Chest beat effect
+    if (this.chestBeat < 8) {
+      const pulse = 1 + (8 - this.chestBeat) * 0.02;
+      ctx.strokeStyle = `rgba(255,100,0,${0.7 - this.chestBeat*0.09})`;
+      ctx.lineWidth = sx(3);
+      ctx.beginPath();
+      ctx.arc(kx + kw/2, ky + kh*0.5, sx(30)*pulse, 0, Math.PI*2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  },
+};
+
+/* ---------- ROCKS (Kong's projectiles) ---------- */
+function spawnRock() {
+  game.rocks.push({
+    x: kong.x + 30,
+    y: kong.y + 50,
+    vx: -(game.speed * 1.6 + 2),
+    vy: 3.5 + Math.random() * 2,
+    r: 12,
+    angle: 0,
+    spin: 0.2 + Math.random() * 0.2,
+  });
+  showKongWarning();
+}
+
+function updateRocks() {
+  for (let i = game.rocks.length - 1; i >= 0; i--) {
+    const r = game.rocks[i];
+    r.x   += r.vx;
+    r.y   += r.vy;
+    r.vy  += 0.18;  // gravity on rock
+    r.angle += r.spin;
+    if (r.x < -20 || r.y > 370) { game.rocks.splice(i, 1); }
+  }
+}
+
+function drawRocks() {
+  for (const r of game.rocks) {
+    ctx.save();
+    const cx = sx(r.x), cy = sy(r.y);
+    ctx.translate(cx, cy);
+    ctx.rotate(r.angle);
+
+    // Rock shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, sy(r.r)*0.5, sx(r.r)*1.2, sy(r.r)*0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Rock body
+    const rg = ctx.createRadialGradient(-sx(r.r*0.3), -sy(r.r*0.3), 0, 0, 0, sx(r.r));
+    rg.addColorStop(0, '#aaa'); rg.addColorStop(1, '#555');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.moveTo(sx(r.r)*0.7, -sy(r.r)*0.2);
+    ctx.lineTo(sx(r.r)*0.2, -sy(r.r)*0.9);
+    ctx.lineTo(-sx(r.r)*0.5, -sy(r.r)*0.7);
+    ctx.lineTo(-sx(r.r)*0.9, sy(r.r)*0.1);
+    ctx.lineTo(-sx(r.r)*0.4, sy(r.r)*0.8);
+    ctx.lineTo(sx(r.r)*0.5, sy(r.r)*0.6);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+/* ---------- BACKGROUND ---------- */
+function initBackground() {
+  // Generate buildings
+  game.buildings = [];
+  let bx = 0;
+  while (bx < 1100) {
+    const bw = 50 + Math.random() * 90;
+    const bh = 80 + Math.random() * 200;
+    game.buildings.push({
+      x: bx, w: bw, h: bh,
+      y: 344 - bh,
+      color: `hsl(${210 + Math.random()*30}, ${15 + Math.random()*20}%, ${10 + Math.random()*18}%)`,
+      windowRows: Math.floor(bh / 30),
+      windowCols: Math.floor(bw / 20),
+      speed: 1.2 + Math.random() * 0.5,
+    });
+    bx += bw + 4 + Math.random() * 12;
+  }
+
+  // Stars
+  game.stars = Array.from({length: 60}, () => ({
+    x: Math.random() * 900, y: Math.random() * 120,
+    r: Math.random() * 1.5 + 0.3,
+    twinkle: Math.random() * Math.PI * 2,
+  }));
+
+  // Clouds
+  game.clouds = Array.from({length: 5}, () => ({
+    x: Math.random() * 900, y: 20 + Math.random() * 70,
+    w: 80 + Math.random() * 120, speed: 0.3 + Math.random() * 0.3,
+  }));
+}
+
+function updateBackground() {
+  // Scroll buildings
+  for (const b of game.buildings) {
+    b.x -= b.speed;
+    if (b.x + b.w < -10) b.x += 1100;
+  }
+  // Scroll clouds
+  for (const c of game.clouds) {
+    c.x -= c.speed;
+    if (c.x + c.w < -10) { c.x = 910; c.y = 20 + Math.random() * 70; }
+  }
+  // Twinkle stars
+  for (const s of game.stars) s.twinkle += 0.03;
+}
+
+function drawBackground() {
+  // Night sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, sy(344));
+  sky.addColorStop(0, '#050510');
+  sky.addColorStop(0.6, '#0a0820');
+  sky.addColorStop(1, '#150a15');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, sy(344));
+
+  // Stars
+  for (const s of game.stars) {
+    const a = 0.5 + 0.5 * Math.sin(s.twinkle);
+    ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(sx(s.x), sy(s.y), sx(s.r), 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Moon
+  ctx.fillStyle = '#fffde0';
+  ctx.beginPath(); ctx.arc(sx(50), sy(40), sx(22), 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#e8e0a0';
+  ctx.beginPath(); ctx.arc(sx(44), sy(36), sx(7), 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(sx(58), sy(48), sx(4), 0, Math.PI*2); ctx.fill();
+
+  // Clouds
+  for (const c of game.clouds) {
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.beginPath();
+    ctx.ellipse(sx(c.x + c.w/2), sy(c.y), sx(c.w/2), sy(18), 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Buildings
+  for (const b of game.buildings) {
+    const bx = sx(b.x), by = sy(b.y), bw = sx(b.w), bh = sy(b.h);
+    ctx.fillStyle = b.color;
+    ctx.fillRect(bx, by, bw, bh);
+
+    // Windows
+    const ww = sx(8), wh = sy(10);
+    for (let row = 0; row < b.windowRows; row++) {
+      for (let col = 0; col < b.windowCols; col++) {
+        const wx = bx + sx(6) + col * sx(18);
+        const wy = by + sy(10) + row * sy(25);
+        if (wx + ww > bx + bw - sx(3)) continue;
+        const lit = ((b.x * 7 + row * 3 + col * 13) % 7) > 2;
+        ctx.fillStyle = lit ? `rgba(255,240,150,${0.5 + 0.3*Math.sin(game.frame*0.01 + row*col)})` : 'rgba(0,0,50,0.6)';
+        ctx.fillRect(wx, wy, ww, wh);
+      }
+    }
+  }
+
+  // Ground
+  const grd = ctx.createLinearGradient(0, sy(344), 0, canvas.height);
+  grd.addColorStop(0, '#1e1e2e');
+  grd.addColorStop(1, '#141420');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, sy(344), canvas.width, canvas.height - sy(344));
+
+  // Road markings
+  ctx.fillStyle = '#333348';
+  ctx.fillRect(0, sy(344), canvas.width, sy(50));
+  ctx.strokeStyle = '#ffffff18';
+  ctx.setLineDash([sx(30), sx(20)]);
+  ctx.lineWidth = sy(2);
+  ctx.beginPath();
+  ctx.moveTo(0, sy(370)); ctx.lineTo(canvas.width, sy(370));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Road edge highlight
+  ctx.fillStyle = '#FFD60022';
+  ctx.fillRect(0, sy(343), canvas.width, sy(3));
+}
+
+/* ---------- PARTICLES ---------- */
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    game.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: -(Math.random() * 4 + 1),
+      r: Math.random() * 4 + 2,
+      color,
+      life: 30 + Math.random() * 20,
+      maxLife: 50,
+    });
+  }
+}
+
+function updateParticles() {
+  for (let i = game.particles.length - 1; i >= 0; i--) {
+    const p = game.particles[i];
+    p.x  += p.vx; p.y  += p.vy; p.vy += 0.2;
+    p.life--;
+    if (p.life <= 0) game.particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of game.particles) {
+    const a = p.life / p.maxLife;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(sx(p.x), sy(p.y), sx(p.r) * a, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- COLLISION DETECTION ---------- */
+// AABB (Axis-Aligned Bounding Box) with a small shrink factor for fairness
+function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh, shrink=0.75) {
+  const sw = aw * shrink, sh = ah * shrink;
+  const ox = ax + aw*(1-shrink)/2;
+  const oy = ay + ah*(1-shrink)/2;
+  return ox < bx + bw && ox + sw > bx &&
+         oy < by + bh && oy + sh > by;
+}
+
+function checkCollisions() {
+  const p = game.player;
+  if (p.invincible > 0) return;
+
+  // Obstacles
+  for (const o of game.obstacles) {
+    if (rectsOverlap(p.x, p.y, p.w, p.h, o.x, o.y, o.w, o.h)) {
+      hitPlayer(o.x + o.w/2, o.y);
+      game.obstacles.splice(game.obstacles.indexOf(o), 1);
+      break;
+    }
+  }
+
+  // Rocks (circle vs rect)
+  for (let i = game.rocks.length - 1; i >= 0; i--) {
+    const r = game.rocks[i];
+    // Simple: treat rock as a rect for AABB
+    if (rectsOverlap(p.x, p.y, p.w, p.h, r.x - r.r, r.y - r.r, r.r*2, r.r*2, 0.8)) {
+      hitPlayer(r.x, r.y);
+      game.rocks.splice(i, 1);
+      break;
+    }
+  }
+}
+
+function hitPlayer(hx, hy) {
+  game.lives--;
+  game.player.invincible = 90;  // ~1.5s of invincibility
+  spawnParticles(hx, hy, '#FF2D55', 14);
+  updateHeartsUI();
+  if (game.lives <= 0) endGame();
+}
+
+/* ---------- SCORE & LIVES ---------- */
+function updateScore() {
+  game.score += game.speed * 0.05;
+  const s = Math.floor(game.score);
+  document.getElementById('scoreDisplay').textContent = s;
+
+  // Reward life every 1000 pts
+  if (s >= game.lastLifeAt + 1000 && game.lives < game.maxLives) {
+    game.lives++;
+    game.lastLifeAt = Math.floor(s / 1000) * 1000;
+    updateHeartsUI();
+    spawnParticles(game.player.x + game.player.w/2, game.player.y, '#FFD600', 20);
+  }
+
+  // Gradually increase speed (soft scaling)
+  const speedCap = DIFFICULTIES[game.difficulty].speed * 1.6;
+  if (game.speed < speedCap) game.speed += 0.0003;
+}
+
+function updateHeartsUI() {
+  const container = document.getElementById('heartsDisplay');
+  container.innerHTML = '';
+  for (let i = 0; i < game.maxLives; i++) {
+    const h = document.createElement('span');
+    h.className = 'heart' + (i >= game.lives ? ' lost' : '');
+    h.textContent = '♥';
+    h.style.color = i < game.lives ? '#FF2D55' : '#555';
+    container.appendChild(h);
+  }
+}
+
+/* ---------- KONG WARNING ===== */
+let warningTimeout = null;
+function showKongWarning() {
+  const el = document.getElementById('kongWarning');
+  el.classList.add('show');
+  clearTimeout(warningTimeout);
+  warningTimeout = setTimeout(() => el.classList.remove('show'), 1200);
+}
+
+/* ---------- INPUT ---------- */
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (!game.running) return;
+  keys[e.code] = true;
+  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); game.player.jump(); }
+  if (e.code === 'ArrowDown') { e.preventDefault(); game.player.duck(true); }
+});
+document.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'ArrowDown' && game.player) game.player.duck(false);
+});
+
+// Touch / tap support
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const midY = canvas.height / 2;
+  if (t.clientY > midY) { game.player.duck(true); }
+  else { game.player.jump(); }
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (game.player) game.player.duck(false);
+}, { passive: false });
+
+/* ---------- MAIN GAME LOOP ---------- */
+function gameLoop() {
+  if (!game.running) return;
+  game.frame++;
+  game.rafId = requestAnimationFrame(gameLoop);
+
+  // Clear
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  updateBackground();
+  drawBackground();
+
+  // Kong
+  kong.update();
+  kong.draw();
+
+  // Player
+  game.player.update();
+
+  // Spawn obstacles
+  game.obstacleTimer++;
+  if (game.obstacleTimer >= game.obstacleNeeded) {
+    spawnObstacle();
+    // randomise next interval a bit
+    game.obstacleTimer = 0;
+    game.obstacleNeeded = DIFFICULTIES[game.difficulty].obstacleInterval * (0.8 + Math.random()*0.4);
+  }
+
+  // Spawn Kong rocks
+  game.kongTimer++;
+  if (game.kongTimer >= game.kongNeeded) {
+    spawnRock();
+    game.kongTimer = 0;
+    game.kongNeeded = DIFFICULTIES[game.difficulty].kongInterval * (0.75 + Math.random()*0.5);
+  }
+
+  updateObstacles();
+  updateRocks();
+  updateParticles();
+
+  // Draw game elements
+  drawObstacles();
+  drawRocks();
+  game.player.draw();
+  drawParticles();
+
+  // Score update after frame draw
+  updateScore();
+  checkCollisions();
+}
+
+/* ---------- GAME CONTROL ---------- */
+function startGame() {
+  const cfg = DIFFICULTIES[game.difficulty];
+
+  // Reset state
+  game.running       = false;
+  game.score         = 0;
+  game.lives         = 3;
+  game.frame         = 0;
+  game.speed         = cfg.speed;
+  game.lastLifeAt    = 0;
+  game.obstacles     = [];
+  game.rocks         = [];
+  game.particles     = [];
+  game.obstacleTimer = 0;
+  game.kongTimer     = 0;
+  game.obstacleNeeded = cfg.obstacleInterval;
+  game.kongNeeded     = cfg.kongInterval;
+
+  game.player = createPlayer();
+  initBackground();
+
+  document.getElementById('diffDisplay').textContent = cfg.label;
+  document.getElementById('scoreDisplay').textContent = '0';
+  updateHeartsUI();
+
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('kongWarning').classList.remove('show');
+
+  game.running = true;
+  if (game.rafId) cancelAnimationFrame(game.rafId);
+  gameLoop();
+}
+
+function endGame() {
+  game.running = false;
+  cancelAnimationFrame(game.rafId);
+
+  document.getElementById('finalScore').textContent = Math.floor(game.score);
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+  document.getElementById('hud').classList.add('hidden');
+}
+
+/* ---------- DIFFICULTY SELECTION ---------- */
+document.querySelectorAll('.btn-diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-diff').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    game.difficulty = btn.dataset.diff;
+  });
+});
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', startGame);
+document.getElementById('changeDiffBtn').addEventListener('click', () => {
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.remove('hidden');
+});
+
+/* ---------- START SCREEN GRAPHIC ---------- */
+function drawStartGraphic() {
+  // Draw a subtle preview of the game on the canvas behind screens
+  initBackground();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  game.frame = 120; // mid-frame for nice window lighting
+  drawBackground();
+  kong.draw();
+}
+drawStartGraphic();
+
+</script>
+</body>
+</html>
